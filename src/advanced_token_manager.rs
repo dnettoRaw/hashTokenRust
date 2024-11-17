@@ -1,7 +1,11 @@
-use std::collections::hash_map::DefaultHasher;
 use std::env;
-use std::hash::{Hash, Hasher};
 use base64::{engine::general_purpose, Engine as _};
+use hmac::{Hmac, Mac};
+use rand::Rng;
+use sha2::{Sha256, Sha512};
+
+type HmacSha256 = Hmac<Sha256>;
+type HmacSha512 = Hmac<Sha512>;
 
 const DEFAULT_SECRET_LENGTH: usize = 32;
 const DEFAULT_SALT_COUNT: usize = 10;
@@ -9,10 +13,15 @@ const DEFAULT_SALT_LENGTH: usize = 16;
 const MIN_SECRET_LENGTH: usize = 16;
 const MIN_SALT_COUNT: usize = 2;
 
+pub enum Algorithm {
+    Sha256,
+    Sha512,
+}
+
 pub struct AdvancedTokenManager {
-    algorithm: String,
     secret: String,
     salts: Vec<String>,
+    algorithm: Algorithm,
     last_salt_index: Option<usize>,
 }
 
@@ -20,18 +29,18 @@ impl AdvancedTokenManager {
     pub fn new(
         secret: Option<String>,
         salts: Option<Vec<String>>,
-        algorithm: Option<String>,
+        algorithm: Option<Algorithm>,
         allow_auto_generate: bool,
         no_env: bool,
     ) -> Result<Self, String> {
         let secret = Self::initialize_secret(secret, allow_auto_generate, no_env)?;
         let salts = Self::initialize_salts(salts, allow_auto_generate, no_env)?;
-        let algorithm = algorithm.unwrap_or_else(|| "sha256".to_string());
+        let algorithm = algorithm.unwrap_or(Algorithm::Sha256);
 
         Ok(Self {
-            algorithm,
             secret,
             salts,
+            algorithm,
             last_salt_index: None,
         })
     }
@@ -92,9 +101,9 @@ impl AdvancedTokenManager {
 
     fn generate_random_key(length: usize) -> String {
         let characters: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".chars().collect();
-        let mut _rng = rand::thread_rng();
+        let mut rng = rand::thread_rng();
         (0..length)
-            .map(|_| characters[rand::random::<usize>() % characters.len()])
+            .map(|_| characters[rng.gen_range(0..characters.len())])
             .collect()
     }
 
@@ -114,7 +123,7 @@ impl AdvancedTokenManager {
         let index = salt_index.unwrap_or_else(|| self.get_random_salt_index());
         self.validate_salt_index(index).unwrap();
         let salt = &self.salts[index];
-        let checksum = Self::create_checksum(input, salt, &self.secret);
+        let checksum = self.create_checksum(input, salt);
         general_purpose::STANDARD.encode(format!("{}|{}|{}", input, index, checksum))
     }
     
@@ -134,7 +143,7 @@ impl AdvancedTokenManager {
         let checksum = parts[2];
     
         self.validate_salt_index(salt_index).ok()?;
-        let valid_checksum = Self::create_checksum(input, &self.salts[salt_index], &self.secret);
+        let valid_checksum = self.create_checksum(input, &self.salts[salt_index]);
     
         if valid_checksum == checksum {
             Some(input.to_string())
@@ -151,9 +160,18 @@ impl AdvancedTokenManager {
         }
     }
 
-    fn create_checksum(input: &str, salt: &str, secret: &str) -> String {
-        let mut hasher = DefaultHasher::new();
-        format!("{}{}{}", input, salt, secret).hash(&mut hasher);
-        hasher.finish().to_string()
+    fn create_checksum(&self, input: &str, salt: &str) -> String {
+        match self.algorithm {
+            Algorithm::Sha256 => {
+                let mut mac = HmacSha256::new_from_slice(self.secret.as_bytes()).expect("Invalid HMAC key");
+                mac.update(format!("{}{}", input, salt).as_bytes());
+                hex::encode(mac.finalize().into_bytes())
+            }
+            Algorithm::Sha512 => {
+                let mut mac = HmacSha512::new_from_slice(self.secret.as_bytes()).expect("Invalid HMAC key");
+                mac.update(format!("{}{}", input, salt).as_bytes());
+                hex::encode(mac.finalize().into_bytes())
+            }
+        }
     }
 }

@@ -1,9 +1,9 @@
 #[cfg(test)]
-
-use hash_token_rust::AdvancedTokenManager;
 mod tests {
-    use super::*;
-    use std::time::{Duration, Instant};
+    use base64::{engine::general_purpose, Engine as _};
+    use hash_token_rust::{advanced_token_manager::Algorithm, AdvancedTokenManager};
+
+    use std::time::Instant;
 
     fn create_token_manager() -> AdvancedTokenManager {
         let secret = Some("my-very-secure-key-12345".to_string());
@@ -14,7 +14,7 @@ mod tests {
             "salt-four".to_string(),
             "salt-five".to_string(),
         ]);
-        AdvancedTokenManager::new(secret, salts, Some("sha256".to_string()), true, true).unwrap()
+        AdvancedTokenManager::new(secret, salts, Some(Algorithm::Sha256), true, true).unwrap()
     }
 
     #[test]
@@ -39,9 +39,18 @@ mod tests {
         let mut manager = create_token_manager();
         let input = "sensitive-data";
         let mut token = manager.generate_token(input, None);
-        token.push('x'); // Adiciona um caractere inválido ao final
+        token.push('x'); // Modifica o token
         let validated = manager.validate_token(&token);
         assert_eq!(validated, None);
+    }
+
+    #[test]
+    fn unique_tokens_for_same_input() {
+        let mut manager = create_token_manager();
+        let input = "sensitive-data";
+        let token1 = manager.generate_token(input, None);
+        let token2 = manager.generate_token(input, None);
+        assert_ne!(token1, token2); // Tokens devem ser diferentes devido aos salts aleatórios
     }
 
     #[test]
@@ -76,17 +85,8 @@ mod tests {
     }
 
     #[test]
-    fn unique_tokens_for_same_input() {
-        let mut manager = create_token_manager();
-        let input = "sensitive-data";
-        let token1 = manager.generate_token(input, None);
-        let token2 = manager.generate_token(input, None);
-        assert_ne!(token1, token2);
-    }
-
-    #[test]
     fn invalid_secret_key() {
-        let result = AdvancedTokenManager::new(Some("".to_string()), None, Some("sha256".to_string()), false, true);
+        let result = AdvancedTokenManager::new(Some("".to_string()), None, Some(Algorithm::Sha256), false, true);
         assert!(result.is_err());
     }
 
@@ -95,10 +95,55 @@ mod tests {
         let result = AdvancedTokenManager::new(
             Some("my-very-secure-key-12345".to_string()),
             Some(vec![]),
-            Some("sha256".to_string()),
+            Some(Algorithm::Sha256),
             false,
             true,
         );
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn generate_token_with_forced_salt_index() {
+        let mut manager = create_token_manager();
+        let input = "sensitive-data";
+        let forced_salt_index = 2;
+
+        let token = manager.generate_token(input, Some(forced_salt_index));
+
+        let decoded_token = general_purpose::STANDARD.decode(&token).unwrap();
+        let token_str = String::from_utf8(decoded_token).unwrap();
+        let parts: Vec<&str> = token_str.split('|').collect();
+
+        assert_eq!(parts[1].parse::<usize>().unwrap(), forced_salt_index);
+    }
+
+    #[test]
+    fn validate_token_with_invalid_salt_index() {
+        let mut manager = create_token_manager();
+        let input = "sensitive-data";
+        let token = manager.generate_token(input, None);
+
+        let decoded_token = general_purpose::STANDARD.decode(&token).unwrap();
+        let token_str = String::from_utf8(decoded_token).unwrap();
+        let mut parts: Vec<&str> = token_str.split('|').collect();
+
+        parts[1] = "100"; // Altera o índice do salt para um inválido
+        let tampered_token = general_purpose::STANDARD.encode(parts.join("|"));
+        assert_eq!(manager.validate_token(&tampered_token), None);
+    }
+
+    #[test]
+    fn detect_tokens_with_tampered_checksum() {
+        let mut manager = create_token_manager();
+        let input = "sensitive-data";
+        let token = manager.generate_token(input, None);
+
+        let decoded_token = general_purpose::STANDARD.decode(&token).unwrap();
+        let token_str = String::from_utf8(decoded_token).unwrap();
+        let mut parts: Vec<&str> = token_str.split('|').collect();
+
+        parts[2] = "tampered_checksum"; // Modifica o checksum
+        let tampered_token = general_purpose::STANDARD.encode(parts.join("|"));
+        assert_eq!(manager.validate_token(&tampered_token), None);
     }
 }
