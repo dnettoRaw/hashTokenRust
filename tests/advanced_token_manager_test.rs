@@ -1,6 +1,6 @@
 #[cfg(test)]
 
-use hashTokenRust::AdvancedTokenManager;
+use hash_token_rust::AdvancedTokenManager;
 mod tests {
     use super::*;
     use std::time::{Duration, Instant};
