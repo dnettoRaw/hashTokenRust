@@ -1,0 +1,13 @@
+[package]
+name = "hash_token_rust"
+version = "0.1.0"
+edition = "2021"
+authors = ["Seu Nome <seu_email@example.com>"]
+description = "Descrição do que o package faz"
+license = "MIT"
+repository = "https://github.com/dnettoRaw/hashTokenRust.git"
+
+
+[dependencies]
+rand = "0.8"
+base64 = "0.22.1"
