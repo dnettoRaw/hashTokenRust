@@ -33,9 +33,9 @@ impl AdvancedTokenManager {
         allow_auto_generate: bool,
         no_env: bool,
     ) -> Result<Self, String> {
-        let secret = Self::initialize_secret(secret, allow_auto_generate, no_env)?;
-        let salts = Self::initialize_salts(salts, allow_auto_generate, no_env)?;
-        let algorithm = algorithm.unwrap_or(Algorithm::Sha256);
+        let secret: String = Self::initialize_secret(secret, allow_auto_generate, no_env)?;
+        let salts: Vec<String> = Self::initialize_salts(salts, allow_auto_generate, no_env)?;
+        let algorithm: Algorithm = algorithm.unwrap_or(Algorithm::Sha256);
 
         Ok(Self {
             secret,
@@ -50,7 +50,7 @@ impl AdvancedTokenManager {
         allow_auto_generate: bool,
         no_env: bool,
     ) -> Result<String, String> {
-        let secret = if !no_env {
+        let secret: Option<String> = if !no_env {
             secret.or_else(|| env::var("TOKEN_SECRET").ok())
         } else {
             secret
@@ -76,20 +76,20 @@ impl AdvancedTokenManager {
         allow_auto_generate: bool,
         no_env: bool,
     ) -> Result<Vec<String>, String> {
-        let salts = if !no_env {
-            salts.or_else(|| env::var("TOKEN_SALTS").ok().map(|s| s.split(',').map(String::from).collect()))
+        let salts: Option<Vec<String>> = if !no_env {
+            salts.or_else(|| env::var("TOKEN_SALTS").ok().map(|s: String| s.split(',').map(String::from).collect()))
         } else {
             salts
         };
 
         match salts {
-            Some(salts) if salts.len() >= MIN_SALT_COUNT && salts.iter().all(|s| !s.trim().is_empty()) => Ok(salts),
+            Some(salts) if salts.len() >= MIN_SALT_COUNT && salts.iter().all(|s: &String| !s.trim().is_empty()) => Ok(salts),
             Some(_) => Err(format!(
                 "Salt array must have at least {} non-empty elements.",
                 MIN_SALT_COUNT
             )),
             None if allow_auto_generate => {
-                let generated_salts = (0..DEFAULT_SALT_COUNT)
+                let generated_salts: Vec<String> = (0..DEFAULT_SALT_COUNT)
                     .map(|_| Self::generate_random_key(DEFAULT_SALT_LENGTH))
                     .collect();
                 eprintln!("⚠️ Salts generated automatically. Store them securely.");
@@ -101,14 +101,14 @@ impl AdvancedTokenManager {
 
     fn generate_random_key(length: usize) -> String {
         let characters: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".chars().collect();
-        let mut rng = rand::thread_rng();
+        let mut rng: rand::prelude::ThreadRng = rand::thread_rng();
         (0..length)
             .map(|_| characters[rng.gen_range(0..characters.len())])
             .collect()
     }
 
     fn get_random_salt_index(&mut self) -> usize {
-        let mut index;
+        let mut index: usize;
         loop {
             index = rand::random::<usize>() % self.salts.len();
             if Some(index) != self.last_salt_index {
@@ -120,15 +120,15 @@ impl AdvancedTokenManager {
     }
 
     pub fn generate_token(&mut self, input: &str, salt_index: Option<usize>) -> String {
-        let index = salt_index.unwrap_or_else(|| self.get_random_salt_index());
+        let index: usize = salt_index.unwrap_or_else(|| self.get_random_salt_index());
         self.validate_salt_index(index).unwrap();
-        let salt = &self.salts[index];
-        let checksum = self.create_checksum(input, salt);
+        let salt: &String = &self.salts[index];
+        let checksum: String = self.create_checksum(input, salt);
         general_purpose::STANDARD.encode(format!("{}|{}|{}", input, index, checksum))
     }
     
     pub fn validate_token(&self, token: &str) -> Option<String> {
-        let decoded = match general_purpose::STANDARD.decode(token) {
+        let decoded: String = match general_purpose::STANDARD.decode(token) {
             Ok(decoded) => String::from_utf8(decoded).ok()?,
             Err(_) => return None,
         };
@@ -138,12 +138,12 @@ impl AdvancedTokenManager {
             return None;
         }
     
-        let input = parts[0];
+        let input: &str = parts[0];
         let salt_index: usize = parts[1].parse().ok()?;
-        let checksum = parts[2];
+        let checksum: &str = parts[2];
     
         self.validate_salt_index(salt_index).ok()?;
-        let valid_checksum = self.create_checksum(input, &self.salts[salt_index]);
+        let valid_checksum: String = self.create_checksum(input, &self.salts[salt_index]);
     
         if valid_checksum == checksum {
             Some(input.to_string())
