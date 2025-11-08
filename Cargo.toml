@@ -2,7 +2,7 @@
 name = "hash_token_rust"
 version = "0.2.0"
 edition = "2021"
-authors = ["hashToken Maintainers <maintainers@hashtoken.dev>"]
+authors = ["dnettoRaw <me@dnetto.dev>"]
 description = "Rust implementation of the AdvancedTokenManager with JWT helpers"
 license = "MIT"
 repository = "https://github.com/dnettoRaw/hashTokenRust.git"
