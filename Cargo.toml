@@ -1,16 +1,18 @@
 [package]
 name = "hash_token_rust"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-authors = ["Seu Nome <seu_email@example.com>"]
-description = "Descrição do que o package faz"
+authors = ["dnettoRaw <me@dnetto.dev>"]
+description = "Rust implementation of the AdvancedTokenManager with JWT helpers"
 license = "MIT"
 repository = "https://github.com/dnettoRaw/hashTokenRust.git"
 
-
 [dependencies]
-hex = "0.4.3"
-sha2 = "0.10.8"
-hmac = "0.12.1"
-rand = "0.8.5"
-base64 = "0.22.1"
+base64 = "0.22"
+hex = "0.4"
+hmac = "0.12"
+rand = "0.8"
+sha2 = "0.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
