@@ -1,7 +1,7 @@
-use base64::Engine;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use hash_token_rust::advanced_token_manager::{
-    AdvancedTokenManager, AdvancedTokenManagerOptions, Algorithm, ManagerSignJwtOptions,
-    ManagerVerifyJwtOptions, ValidateTokenOptions,
+    AdvancedTokenManager, AdvancedTokenManagerOptions, Algorithm, GenerateTokenOptions,
+    ManagerSignJwtOptions, ManagerVerifyJwtOptions, ValidateTokenOptions,
 };
 use hash_token_rust::jwt::{Audience, JwtAlgorithm, JwtClaims};
 
@@ -68,12 +68,80 @@ fn validate_token_throws_when_configured() {
 fn generate_token_with_explicit_salt_index() {
     let mut manager = manager();
     let token = manager.generate_token("payload", Some(1)).unwrap();
-    let decoded = base64::engine::general_purpose::STANDARD
-        .decode(token)
+    let parts: Vec<&str> = token.split('.').collect();
+    assert_eq!(parts[0], "htr1");
+    let meta = URL_SAFE_NO_PAD.decode(parts[2]).unwrap();
+    let meta: serde_json::Value = serde_json::from_slice(&meta).unwrap();
+    assert_eq!(meta["salt"], 1);
+}
+
+#[test]
+fn native_token_enforces_expiration() {
+    let mut manager = manager();
+    let token = manager
+        .generate_token_with_options(
+            "payload",
+            Some(GenerateTokenOptions {
+                expires_in: Some(10.0),
+                issued_at: Some(1000.0),
+                ..Default::default()
+            }),
+        )
         .unwrap();
-    let text = String::from_utf8(decoded).unwrap();
-    let parts: Vec<&str> = text.split('|').collect();
-    assert_eq!(parts[1], "1");
+
+    let err = manager
+        .validate_token_with_options(
+            &token,
+            Some(ValidateTokenOptions {
+                throw_on_failure: Some(true),
+                clock_timestamp: Some(1011.0),
+                ..Default::default()
+            }),
+        )
+        .unwrap_err();
+    assert!(err.to_string().contains("Token expired"));
+}
+
+#[test]
+fn native_token_enforces_issuer_and_audience() {
+    let mut manager = manager();
+    let token = manager
+        .generate_token_with_options(
+            "payload",
+            Some(GenerateTokenOptions {
+                issuer: Some("bin-1".into()),
+                audience: Some("bin-2".into()),
+                issued_at: Some(1000.0),
+                ..Default::default()
+            }),
+        )
+        .unwrap();
+
+    let valid = manager
+        .validate_token_with_options(
+            &token,
+            Some(ValidateTokenOptions {
+                issuer: Some("bin-1".into()),
+                audience: Some("bin-2".into()),
+                clock_timestamp: Some(1001.0),
+                ..Default::default()
+            }),
+        )
+        .unwrap();
+    assert_eq!(valid, Some("payload".to_string()));
+
+    let err = manager
+        .validate_token_with_options(
+            &token,
+            Some(ValidateTokenOptions {
+                throw_on_failure: Some(true),
+                audience: Some("bin-3".into()),
+                clock_timestamp: Some(1001.0),
+                ..Default::default()
+            }),
+        )
+        .unwrap_err();
+    assert!(err.to_string().contains("audience mismatch"));
 }
 
 #[test]
@@ -97,8 +165,10 @@ fn manager_generates_and_validates_jwt() {
 
 #[test]
 fn manager_applies_default_jwt_algorithms() {
-    let mut options = AdvancedTokenManagerOptions::default();
-    options.jwt_default_algorithms = Some(vec![JwtAlgorithm::HS256]);
+    let options = AdvancedTokenManagerOptions {
+        jwt_default_algorithms: Some(vec![JwtAlgorithm::HS256]),
+        ..Default::default()
+    };
     let manager = AdvancedTokenManager::new(
         Some("averysecuresecretvalue".to_string()),
         Some(vec!["salt-a".into(), "salt-b".into()]),
@@ -113,8 +183,10 @@ fn manager_applies_default_jwt_algorithms() {
     claims.insert("sub".to_string(), "user-123".into());
     let token = manager.generate_jwt(&claims, None).unwrap();
 
-    let mut verify_options = ManagerVerifyJwtOptions::default();
-    verify_options.algorithms = Some(vec![JwtAlgorithm::HS256]);
+    let verify_options = ManagerVerifyJwtOptions {
+        algorithms: Some(vec![JwtAlgorithm::HS256]),
+        ..Default::default()
+    };
     manager
         .validate_jwt::<JwtClaims>(&token, Some(verify_options))
         .unwrap();
@@ -130,6 +202,7 @@ fn validate_token_with_options_no_throw() {
             &tampered,
             Some(ValidateTokenOptions {
                 throw_on_failure: Some(false),
+                ..Default::default()
             }),
         )
         .unwrap();
@@ -145,8 +218,73 @@ fn configure_audience_for_jwt_verification() {
 
     let token = manager.generate_jwt(&claims, None).unwrap();
 
-    let mut verify_options = ManagerVerifyJwtOptions::default();
-    verify_options.audience = Some(Audience::Single("service-a".into()));
+    let verify_options = ManagerVerifyJwtOptions {
+        audience: Some(Audience::Single("service-a".into())),
+        ..Default::default()
+    };
     let validated: JwtClaims = manager.validate_jwt(&token, Some(verify_options)).unwrap();
     assert_eq!(validated.get("sub").unwrap(), "user-123");
+}
+
+#[test]
+fn manager_validate_jwt_rejects_wrong_secret() {
+    let manager = manager();
+    let mut claims: JwtClaims = JwtClaims::new();
+    claims.insert("sub".to_string(), "user-123".into());
+    let token = manager.generate_jwt(&claims, None).unwrap();
+
+    let verify_options = ManagerVerifyJwtOptions {
+        secret: Some("different-secret-value".into()),
+        ..Default::default()
+    };
+    let err = manager
+        .validate_jwt::<JwtClaims>(&token, Some(verify_options))
+        .unwrap_err();
+    assert!(err.to_string().contains("invalid signature"));
+}
+
+#[test]
+fn manager_validate_jwt_enforces_max_payload_size() {
+    let options = AdvancedTokenManagerOptions {
+        jwt_max_payload_size: Some(32),
+        ..Default::default()
+    };
+    let manager = AdvancedTokenManager::new(
+        Some("averysecuresecretvalue".to_string()),
+        Some(vec!["salt-a".into(), "salt-b".into()]),
+        Some(Algorithm::Sha256),
+        true,
+        true,
+        Some(options),
+    )
+    .unwrap();
+
+    let mut claims: JwtClaims = JwtClaims::new();
+    claims.insert("sub".to_string(), "user-123".into());
+    claims.insert("large".to_string(), "x".repeat(128).into());
+    let token = manager.generate_jwt(&claims, None).unwrap();
+
+    let err = manager.validate_jwt::<JwtClaims>(&token, None).unwrap_err();
+    assert!(err.to_string().contains("maxPayloadSize"));
+}
+
+#[test]
+fn manager_validate_jwt_rejects_disallowed_algorithm() {
+    let manager = manager();
+    let mut claims: JwtClaims = JwtClaims::new();
+    claims.insert("sub".to_string(), "user-123".into());
+    let sign_options = ManagerSignJwtOptions {
+        algorithm: Some(JwtAlgorithm::HS512),
+        ..Default::default()
+    };
+    let token = manager.generate_jwt(&claims, Some(sign_options)).unwrap();
+
+    let verify_options = ManagerVerifyJwtOptions {
+        algorithms: Some(vec![JwtAlgorithm::HS256]),
+        ..Default::default()
+    };
+    let err = manager
+        .validate_jwt::<JwtClaims>(&token, Some(verify_options))
+        .unwrap_err();
+    assert!(err.to_string().contains("is not allowed"));
 }

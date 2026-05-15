@@ -3,8 +3,8 @@ pub mod jwt;
 
 pub use advanced_token_manager::{
     AdvancedTokenError, AdvancedTokenManager, AdvancedTokenManagerLogger,
-    AdvancedTokenManagerOptions, Algorithm, ManagerConfig, ManagerSignJwtOptions,
-    ManagerVerifyJwtOptions, TokenValidationError, ValidateTokenOptions,
+    AdvancedTokenManagerOptions, Algorithm, GenerateTokenOptions, ManagerConfig,
+    ManagerSignJwtOptions, ManagerVerifyJwtOptions, TokenValidationError, ValidateTokenOptions,
 };
 
 pub use jwt::{
