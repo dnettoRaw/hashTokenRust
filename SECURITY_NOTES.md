@@ -1,9 +1,8 @@
 # Security Notes
 
-- JWT verification rejects `alg: none` and accepts only exact `HS256` or `HS512`.
-- Signatures and legacy token checksums are compared without early exit for equal-length inputs.
-- Base64URL segments must use the unpadded URL-safe alphabet. Empty or malformed segments are rejected.
-- `exp`, `nbf`, `iat`, `iss`, `aud` and `sub` are validated when present, and required when configured in verify options.
-- `clock_tolerance` is non-negative and temporal arithmetic uses checked operations.
-- `max_payload_size` is checked before and after payload decoding to limit unauthenticated allocation.
-- Use high-entropy secrets. `AdvancedTokenManager::new` requires at least 16 characters for its main secret.
+- Native `htr1` tokens are signed, not encrypted.
+- Payloads are Base64URL encoded and readable by anyone who has the token.
+- HMAC authenticates version, payload and metadata using the shared secret plus selected salt.
+- Verification checks algorithm, salt index, expiration, max age, issuer and audience when configured.
+- Signature comparison is constant-time for equal-length signatures.
+- Use an encrypted token mode for payload secrecy.
