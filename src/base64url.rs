@@ -1,3 +1,8 @@
+//! Strict unpadded Base64URL helpers.
+//!
+//! Decoding rejects empty, malformed, and non-canonical segments. That keeps
+//! token parsing deterministic and avoids accepting multiple encodings for the
+//! same bytes.
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 
@@ -8,6 +13,8 @@ pub(crate) fn encode(input: &[u8]) -> String {
 }
 
 pub(crate) fn decode(input: &str, name: &str) -> Result<Vec<u8>, TokenError> {
+    // Padding e caracteres fora do alfabeto URL-safe sao rejeitados antes da lib
+    // tentar normalizar qualquer coisa.
     if input.is_empty() || !input.bytes().all(is_allowed) {
         return Err(TokenError::new(format!("Invalid {} encoding.", name)));
     }
@@ -15,6 +22,7 @@ pub(crate) fn decode(input: &str, name: &str) -> Result<Vec<u8>, TokenError> {
         .decode(input)
         .map_err(|_| TokenError::new(format!("Malformed {} encoding.", name)))?;
     if encode(&decoded) != input {
+        // Reencode e compara para garantir uma unica forma valida para o mesmo dado.
         return Err(TokenError::new(format!("Non-canonical {} encoding.", name)));
     }
     Ok(decoded)

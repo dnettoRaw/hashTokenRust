@@ -1,3 +1,7 @@
+//! Signed-token construction.
+//!
+//! The signature covers the format version, encoded payload, and encoded
+//! metadata. The final signature segment is encoded last to avoid re-parsing.
 use crate::base64url;
 use crate::error::TokenError;
 use crate::manager::AdvancedTokenManager;
@@ -11,6 +15,8 @@ pub(crate) fn token(
     payload: &[u8],
     options: &GenerateTokenOptions<'_>,
 ) -> Result<String, TokenError> {
+    // Payload e metadata sao codificados antes da assinatura porque a assinatura
+    // protege o formato textual final, nao uma representacao paralela.
     let salt_index = manager.select_salt(options.salt_index)?;
     let meta = meta(manager, salt_index, options)?;
     let encoded_payload = base64url::encode(payload);
@@ -31,6 +37,7 @@ fn meta(
     salt_index: usize,
     options: &GenerateTokenOptions<'_>,
 ) -> Result<Meta, TokenError> {
+    // issued_at pode vir de fora para testes e sistemas com relogio centralizado.
     let issued_at = options.issued_at.map_or_else(crate::validate::now, Ok)?;
     Ok(Meta {
         algorithm: manager.algorithm.name().to_string(),
@@ -43,6 +50,7 @@ fn meta(
 }
 
 fn assemble(payload: &str, meta: &str, signature: &str) -> Result<String, TokenError> {
+    // Montagem manual pequena: menos alocacao intermediaria e formato explicito.
     let mut token =
         String::with_capacity(VERSION.len() + payload.len() + meta.len() + signature.len() + 3);
     token.push_str(VERSION);
@@ -59,6 +67,7 @@ pub(crate) fn expiration(
     issued_at: u64,
     expires_in: Option<u64>,
 ) -> Result<Option<u64>, TokenError> {
+    // checked_add evita wrap silencioso quando expires_in vier grande demais.
     expires_in
         .map(|seconds| {
             issued_at

@@ -1,3 +1,7 @@
+//! Public signed-token API.
+//!
+//! Signed tokens use the `htr1.payload.metadata.signature` shape. The payload is
+//! readable Base64URL, while metadata and payload are protected by HMAC.
 pub(crate) mod build;
 mod parts;
 
@@ -10,6 +14,7 @@ use crate::validate;
 pub(crate) const VERSION: &str = "htr1";
 
 impl AdvancedTokenManager {
+    /// Generates a signed token from a UTF-8 payload.
     pub fn generate_token(
         &mut self,
         payload: &str,
@@ -18,6 +23,7 @@ impl AdvancedTokenManager {
         self.generate_token_bytes(payload.as_bytes(), options)
     }
 
+    /// Generates a signed token from raw bytes.
     pub fn generate_token_bytes(
         &mut self,
         payload: &[u8],
@@ -26,6 +32,7 @@ impl AdvancedTokenManager {
         build::token(self, payload, &options)
     }
 
+    /// Validates a signed token and returns a UTF-8 payload.
     pub fn validate_token(
         &self,
         token: &str,
@@ -54,6 +61,7 @@ impl AdvancedTokenManager {
         })
     }
 
+    /// Validates a signed token and returns only the UTF-8 payload.
     pub fn validate_payload(
         &self,
         token: &str,
@@ -63,6 +71,7 @@ impl AdvancedTokenManager {
             .map(|verified| verified.payload)
     }
 
+    /// Validates a signed token and returns raw payload bytes.
     pub fn validate_token_bytes(
         &self,
         token: &str,

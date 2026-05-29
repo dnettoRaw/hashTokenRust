@@ -1,3 +1,4 @@
+//! Sealed-token splitting and associated-data assembly.
 use crate::error::TokenError;
 use crate::sealed::VERSION;
 
@@ -8,6 +9,8 @@ pub(crate) struct Parts<'a> {
 }
 
 pub(crate) fn split(token: &str) -> Result<Parts<'_>, TokenError> {
+    // O formato sealed tem sempre 4 partes. Se aceitar mais ou menos que isso,
+    // fica facil abrir margem para token truncado ou token montado errado.
     let mut fields = token.split('.');
     let version = fields.next().unwrap_or_default();
     let ciphertext = fields.next().unwrap_or_default();
@@ -22,6 +25,8 @@ pub(crate) fn split(token: &str) -> Result<Parts<'_>, TokenError> {
 }
 
 pub(crate) fn aad(meta: &str, nonce: &str) -> String {
+    // AAD e o pedaco que nao fica criptografado, mas entra na autenticacao.
+    // Assim metadata e nonce nao podem ser trocados entre tokens.
     let mut input = String::with_capacity(VERSION.len() + meta.len() + nonce.len() + 2);
     input.push_str(VERSION);
     input.push('.');
@@ -38,6 +43,8 @@ fn reject_bad_shape(
     nonce: &str,
     extra: Option<&str>,
 ) -> Result<(), TokenError> {
+    // Segmento vazio aqui quase sempre indica token cortado, separador sobrando
+    // ou tentativa de adaptar outro formato para este parser.
     if version != VERSION
         || ciphertext.is_empty()
         || meta.is_empty()

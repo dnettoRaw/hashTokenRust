@@ -1,3 +1,7 @@
+//! Time validation for expiration and maximum age.
+//!
+//! Callers may inject `clock_timestamp` for tests or for binaries that centralize
+//! time. Clock tolerance is only a small allowance around configured limits.
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::TokenError;
@@ -5,6 +9,7 @@ use crate::meta::Meta;
 use crate::options::ValidateTokenOptions;
 
 pub(crate) fn now() -> Result<u64, TokenError> {
+    // Retorna Result para nao esconder sistemas com relogio antes do UNIX_EPOCH.
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
@@ -15,6 +20,8 @@ pub(crate) fn validate_time(
     meta: &Meta,
     options: &ValidateTokenOptions<'_>,
 ) -> Result<(), TokenError> {
+    // clock_timestamp deixa teste deterministico e tambem ajuda binarios que ja
+    // recebem o tempo de uma camada externa confiavel.
     let now = match options.clock_timestamp {
         Some(value) => value,
         None => now()?,
@@ -25,6 +32,8 @@ pub(crate) fn validate_time(
 }
 
 fn validate_expiration(meta: &Meta, now: u64, tolerance: u64) -> Result<(), TokenError> {
+    // Tolerancia amplia o exp para compensar drift pequeno, mas overflow continua
+    // sendo erro porque seria impossivel saber a janela real.
     if let Some(exp) = meta.expires_at {
         let exp = exp
             .checked_add(tolerance)
@@ -42,6 +51,7 @@ fn validate_max_age(
     tolerance: u64,
     max_age: Option<u64>,
 ) -> Result<(), TokenError> {
+    // max_age limita vida util mesmo quando o token nao tem exp gravado.
     if let Some(max_age) = max_age {
         let age = now
             .checked_sub(meta.issued_at)

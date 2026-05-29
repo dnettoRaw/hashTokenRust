@@ -1,3 +1,8 @@
+//! Internal metadata shared by signed and sealed token formats.
+//!
+//! Metadata stores only routing and validation fields. In signed tokens it is
+//! authenticated by the signature. In sealed tokens it is authenticated as AEAD
+//! associated data.
 mod decode;
 mod encode;
 mod parse;

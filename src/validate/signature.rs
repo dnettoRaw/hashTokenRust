@@ -1,8 +1,10 @@
+//! Signature decoding and constant-time comparison.
 use crate::base64url;
 use crate::crypto;
 use crate::error::TokenError;
 
 pub(crate) fn signature(expected: &[u8], encoded: &str) -> Result<(), TokenError> {
+    // Assinatura recebida tambem passa pelo Base64URL canonico antes de comparar.
     let provided = base64url::decode(encoded, "signature")?;
     if crypto::constant_time_eq(expected, &provided) {
         Ok(())

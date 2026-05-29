@@ -1,3 +1,8 @@
+//! Public sealed-token API.
+//!
+//! Sealed tokens use the `hte1.ciphertext.metadata.nonce` shape. The payload is
+//! encrypted with ChaCha20-Poly1305 and metadata is authenticated as associated
+//! data.
 mod build;
 mod open;
 mod parts;
@@ -9,6 +14,7 @@ use crate::options::{GenerateTokenOptions, ValidateTokenOptions, VerifiedBytes, 
 pub(crate) const VERSION: &str = "hte1";
 
 impl AdvancedTokenManager {
+    /// Encrypts and authenticates a UTF-8 payload.
     pub fn seal_token(
         &mut self,
         payload: &str,
@@ -17,6 +23,7 @@ impl AdvancedTokenManager {
         self.seal_token_bytes(payload.as_bytes(), options)
     }
 
+    /// Encrypts and authenticates raw payload bytes.
     pub fn seal_token_bytes(
         &mut self,
         payload: &[u8],
@@ -25,6 +32,7 @@ impl AdvancedTokenManager {
         build::token(self, payload, &options)
     }
 
+    /// Opens a sealed token and returns a UTF-8 payload.
     pub fn open_token(
         &self,
         token: &str,
@@ -44,6 +52,7 @@ impl AdvancedTokenManager {
         })
     }
 
+    /// Opens a sealed token and returns raw payload bytes.
     pub fn open_token_bytes(
         &self,
         token: &str,

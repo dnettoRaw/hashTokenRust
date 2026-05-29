@@ -1,3 +1,5 @@
+//! Signed-token splitting and signing input assembly.
+
 use crate::error::TokenError;
 use crate::token::VERSION;
 
@@ -8,6 +10,7 @@ pub(crate) struct Parts<'a> {
 }
 
 pub(crate) fn split(token: &str) -> Result<Parts<'_>, TokenError> {
+    // Token assinado tem 4 partes fixas. Nao tentamos recuperar formato quebrado.
     let mut fields = token.split('.');
     let version = fields.next().unwrap_or_default();
     let payload = fields.next().unwrap_or_default();
@@ -22,6 +25,8 @@ pub(crate) fn split(token: &str) -> Result<Parts<'_>, TokenError> {
 }
 
 pub(crate) fn signing_input(payload: &str, meta: &str) -> String {
+    // A assinatura cobre exatamente o que sera transportado antes dela.
+    // Isso evita diferenca entre bytes assinados e bytes serializados.
     let mut input = String::with_capacity(VERSION.len() + payload.len() + meta.len() + 2);
     input.push_str(VERSION);
     input.push('.');
@@ -38,6 +43,8 @@ fn reject_bad_shape(
     signature: &str,
     extra: Option<&str>,
 ) -> Result<(), TokenError> {
+    // Segmentos vazios sao rejeitados antes de Base64URL para dar erro de
+    // estrutura, nao erro criptico de encoding.
     if version != VERSION
         || payload.is_empty()
         || meta.is_empty()

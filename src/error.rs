@@ -1,6 +1,8 @@
+//! Error type returned by token generation, validation, sealing, and opening.
 use std::error::Error;
 use std::fmt::{self, Display};
 
+/// Small owned error with a human-readable validation or crypto failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TokenError {
     message: String,
