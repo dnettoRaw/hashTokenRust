@@ -1,37 +1,26 @@
-pub mod advanced_token_manager;
-pub mod jwt;
+//! Minimal native tokens for standalone Rust programs.
+//!
+//! `hash_token_rust` signs or seals small pieces of data using a shared
+//! secret, one or more salts, and explicit validation options. Signed tokens
+//! keep the payload readable and protected by HMAC. Sealed tokens encrypt the
+//! payload and authenticate the metadata.
+//!
+//! The crate is intentionally small: the public entry point is
+//! [`AdvancedTokenManager`], options are plain structs, and failures return
+//! [`TokenError`] instead of panicking.
+mod base64url;
+mod crypto;
+mod error;
+mod manager;
+mod meta;
+mod options;
+mod sealed;
+mod token;
+mod validate;
 
-pub use advanced_token_manager::{
-    AdvancedTokenError, AdvancedTokenManager, AdvancedTokenManagerLogger,
-    AdvancedTokenManagerOptions, Algorithm, ManagerConfig, ManagerSignJwtOptions,
-    ManagerVerifyJwtOptions, TokenValidationError, ValidateTokenOptions,
-};
+pub use error::TokenError;
+pub use manager::{AdvancedTokenManager, Algorithm};
+pub use options::{GenerateTokenOptions, ValidateTokenOptions, VerifiedBytes, VerifiedToken};
 
-pub use jwt::{
-    sign_jwt, verify_jwt, verify_jwt_as, Audience, Issuer, JwtAlgorithm, JwtClaims, JwtError,
-    SignJwtOptions, VerifyJwtOptions,
-};
-
-pub const LIBRARY_VERSION: &str = "0.2.0";
-
-#[cfg(test)]
-mod docs {
-    use super::*;
-
-    #[test]
-    fn example_usage() {
-        let mut manager = AdvancedTokenManager::new(
-            Some("my-very-secure-key".to_string()),
-            Some(vec!["salt1".to_string(), "salt2".to_string()]),
-            Some(Algorithm::Sha256),
-            true,
-            true,
-            Some(AdvancedTokenManagerOptions::default()),
-        )
-        .unwrap();
-
-        let token = manager.generate_token("my-data", None).unwrap();
-        let validated = manager.validate_token(&token).unwrap();
-        assert_eq!(validated, Some("my-data".to_string()));
-    }
-}
+/// Current library version exposed for binaries that want to log or compare it.
+pub const LIBRARY_VERSION: &str = "0.3.5";
