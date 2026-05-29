@@ -55,7 +55,10 @@ fn assemble(payload: &str, meta: &str, signature: &str) -> Result<String, TokenE
     Ok(token)
 }
 
-fn expiration(issued_at: u64, expires_in: Option<u64>) -> Result<Option<u64>, TokenError> {
+pub(crate) fn expiration(
+    issued_at: u64,
+    expires_in: Option<u64>,
+) -> Result<Option<u64>, TokenError> {
     expires_in
         .map(|seconds| {
             issued_at

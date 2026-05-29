@@ -217,6 +217,104 @@ fn signs_and_validates_binary_payload() {
 }
 
 #[test]
+fn seals_and_opens_text_payload() {
+    let mut manager = manager();
+    let token = manager
+        .seal_token(
+            "email=user@example.com",
+            GenerateTokenOptions {
+                issued_at: Some(1000),
+                issuer: Some("bin-a"),
+                audience: Some("bin-b"),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    assert!(token.starts_with("hte1."));
+    assert!(!token.contains("user@example.com"));
+
+    let verified = manager
+        .open_token(
+            &token,
+            ValidateTokenOptions {
+                clock_timestamp: Some(1001),
+                issuer: Some("bin-a"),
+                audience: Some("bin-b"),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(verified.payload, "email=user@example.com");
+}
+
+#[test]
+fn seals_and_opens_binary_payload() {
+    let mut manager = manager();
+    let bytes = [0, 1, 2, 3, 255];
+    let token = manager
+        .seal_token_bytes(
+            &bytes,
+            GenerateTokenOptions {
+                issued_at: Some(1000),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    let verified = manager
+        .open_token_bytes(
+            &token,
+            ValidateTokenOptions {
+                clock_timestamp: Some(1000),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(verified.payload, bytes);
+}
+
+#[test]
+fn sealed_token_rejects_wrong_secret_and_tampering() {
+    let mut manager = manager();
+    let token = manager
+        .seal_token(
+            "secret-data",
+            GenerateTokenOptions {
+                issued_at: Some(1000),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    let other = AdvancedTokenManager::new(
+        b"other-secure-secret",
+        &[b"salt-a".as_slice(), b"salt-b".as_slice()],
+        Algorithm::Sha256,
+    )
+    .unwrap();
+    assert!(other
+        .open_token(
+            &token,
+            ValidateTokenOptions {
+                clock_timestamp: Some(1000),
+                ..Default::default()
+            },
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("open"));
+
+    let mut parts: Vec<&str> = token.split('.').collect();
+    parts[1] = "dGFtcGVyZWQ";
+    assert!(manager
+        .open_token(&parts.join("."), ValidateTokenOptions::default())
+        .unwrap_err()
+        .to_string()
+        .contains("open"));
+}
+
+#[test]
 fn rejects_bad_structure_and_base64() {
     let manager = manager();
 

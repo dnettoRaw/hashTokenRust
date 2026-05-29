@@ -27,6 +27,17 @@ pub(crate) fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
     diff == 0
 }
 
+pub(crate) fn sealing_key(
+    algorithm: Algorithm,
+    secret: &[u8],
+    salt: &[u8],
+) -> Result<[u8; 32], TokenError> {
+    let digest = sign(algorithm, secret, salt, b"hash-token-rust:sealed:v1")?;
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&digest[..32]);
+    Ok(key)
+}
+
 fn hmac_sha256(secret: &[u8], salt: &[u8], input: &[u8]) -> Result<Vec<u8>, TokenError> {
     let mut mac =
         Hmac::<Sha256>::new_from_slice(secret).map_err(|_| TokenError::new("Invalid HMAC key."))?;

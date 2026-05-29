@@ -1,14 +1,15 @@
 # hash_token_rust
 
-Minimal native signed tokens for standalone Rust binaries.
+Minimal native signed and sealed tokens for standalone Rust binaries.
 
 The main format is:
 
 ```text
 htr1.<payload_b64url>.<metadata_b64url>.<signature_b64url>
+hte1.<ciphertext_b64url>.<metadata_b64url>.<nonce_b64url>
 ```
 
-The payload is encoded, not encrypted. The signature authenticates the token with HMAC using a shared secret and the selected salt.
+`htr1` signs data but does not hide it. `hte1` encrypts and authenticates data with ChaCha20-Poly1305 using a key derived from the shared secret and selected salt.
 
 ## Use Case
 
@@ -51,15 +52,44 @@ assert_eq!(verified.issuer.as_deref(), Some("bin-a"));
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
+## Sealed Payloads
+
+Use sealed tokens when the payload must not be readable by whoever sees the token.
+
+```rust
+let token = manager.seal_token(
+    "email=user@example.com",
+    GenerateTokenOptions {
+        expires_in: Some(300),
+        issuer: Some("bin-a"),
+        audience: Some("bin-b"),
+        ..Default::default()
+    },
+)?;
+
+let verified = manager.open_token(
+    &token,
+    ValidateTokenOptions {
+        issuer: Some("bin-a"),
+        audience: Some("bin-b"),
+        ..Default::default()
+    },
+)?;
+
+assert_eq!(verified.payload, "email=user@example.com");
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
 ## Security Notes
 
-- This signs data; it does not hide data.
-- Use it for authenticity, integrity, age control, issuer and audience checks.
+- `htr1` signs data; it does not hide data.
+- `hte1` seals data; it encrypts and authenticates the payload.
+- Use signed tokens for authenticity and sealed tokens for payload secrecy.
 - Use a strong shared secret and rotate salts deliberately.
 - `validate_token` returns validated metadata with the payload.
 - `validate_payload` is available when only the payload is needed.
 - `generate_token_bytes` and `validate_token_bytes` support non-UTF-8 payloads.
-- If payload secrecy is required, add a separate encrypted token mode later.
+- `seal_token_bytes` and `open_token_bytes` support encrypted non-UTF-8 payloads.
 
 ## Binary Payloads
 

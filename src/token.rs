@@ -1,4 +1,4 @@
-mod build;
+pub(crate) mod build;
 mod parts;
 
 use crate::base64url;

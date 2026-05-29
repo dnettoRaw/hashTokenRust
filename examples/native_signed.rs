@@ -30,5 +30,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("payload={}", verified.payload);
     println!("salt_index={}", verified.salt_index);
+
+    let sealed = manager.seal_token(
+        "email=user@example.com",
+        GenerateTokenOptions {
+            expires_in: Some(300),
+            issuer: Some("bin-a"),
+            audience: Some("bin-b"),
+            ..Default::default()
+        },
+    )?;
+    let opened = manager.open_token(
+        &sealed,
+        ValidateTokenOptions {
+            issuer: Some("bin-a"),
+            audience: Some("bin-b"),
+            ..Default::default()
+        },
+    )?;
+    println!("sealed_payload={}", opened.payload);
     Ok(())
 }

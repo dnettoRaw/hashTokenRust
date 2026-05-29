@@ -4,6 +4,7 @@ mod error;
 mod manager;
 mod meta;
 mod options;
+mod sealed;
 mod token;
 mod validate;
 
