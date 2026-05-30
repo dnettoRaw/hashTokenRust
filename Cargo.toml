@@ -4,8 +4,16 @@ version = "0.3.5"
 edition = "2021"
 authors = ["dnettoRaw <me@dnetto.dev>"]
 description = "Minimal native signed tokens for standalone binaries"
+readme = "README.md"
 license = "MIT"
 repository = "https://github.com/dnettoRaw/hashTokenRust.git"
+exclude = [
+    "AGENTS.md",
+    ".github",
+    ".vscode",
+    ".npmignore",
+    "version"
+]
 
 [dependencies]
 base64 = "0.22"
